@@ -1,0 +1,4 @@
+.DS_Store
+contourfiles/*
+dicoms/*
+*.csv
