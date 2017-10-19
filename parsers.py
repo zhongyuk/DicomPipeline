@@ -5,6 +5,7 @@ __email__ = 'zhongyu.kuang@gmail.com'
 
 """
 
+import abc
 import os
 
 import dicom
@@ -16,21 +17,19 @@ import pandas as pd
 from PIL import Image, ImageDraw
 
 
-def get_patientID_originalID(link_fn):
-	"""Read in patient_id - original_id pairs from the link_fn.
+class Parser(object):
 
-	Params:
-		link_fn: str - the link.csv filename for pairing patient_id and original_id
-
-	Return:
-		patientID_originalID: DataFrame - stores paired up patient ID and original ID
-	"""
-
-	return pd.read_csv(link_fn)
+	@abc.abstractmethod
+	def parse(self):
+		raise NotImplementedError('parse method is not implemented!')
 
 
-class DicomParser(object):
+class DicomParser(Parser):
 	"""DICOM Image Parser."""
+
+	DIR = 'dicoms/'
+	FOLDER = '/'
+	FN_POSTFIX = '.dcm'
 
 	def __init__(self, patient_id, dicom_id):
 		"""A constructor for initializing a DicomParser instance.
@@ -42,10 +41,6 @@ class DicomParser(object):
 		self.patient_id = patient_id
 		self.dicom_id = dicom_id
 
-		self.directory = 'dicoms/'
-		self.filename_prefix = '/'
-		self.filename_postfix = '.dcm'
-
 	def _construct_filename(self):
 		"""Construct DICOM image filename.
 
@@ -54,8 +49,8 @@ class DicomParser(object):
 			raise IOError if file does not exist
 		"""
 
-		dicom_fn = (self.directory + self.patient_id + self.filename_prefix +
-					str(self.dicom_id) + self.filename_postfix)
+		dicom_fn = (DicomParser.DIR + self.patient_id + DicomParser.FOLDER+
+					str(self.dicom_id) + DicomParser.FN_POSTFIX)
 
 		if os.path.isfile(dicom_fn):
 			return dicom_fn
@@ -97,10 +92,17 @@ class DicomParser(object):
 			return None
 
 
-class ContourParser(object):
+class ContourParser(Parser):
 	"""Contour File Parser."""
 
-	def __init__(self, original_id, contour_type, contour_id):
+	DIR = 'contourfiles/'
+	FN_PREFIX = 'IM-0001-'
+	ICONTOUR_FOLDER = '/i-contours/'
+	OCONTOUR_FOLDER = '/o-contours/'
+	ICONTOUR_FN_POSTFIX = '-icontour-manual.txt'
+	OCONTOUR_FN_POSTFIX = '-ocontour-manual.txt'
+
+	def __init__(self, original_id, contour_id, contour_type):
 		"""A constructor for initializing a ContourParser instance.
 
 		Params:
@@ -108,15 +110,11 @@ class ContourParser(object):
 			contour_type: str - 'o' for `o-contours`, 'i' for `i-contours`
 			contour_id: int - specify contour file ID
 		"""
-		assert contour_type in ['o', 'i'], "unknown contour type: %s" %(contour_type)
-		assert contour_id < 10 ** 5
+		assert contour_type in ['o', 'i'], 'unknown contour type: %s' % (contour_type)
+		assert contour_id < 10 ** 5, 'contour ID is too large: %d' % (contour_id)
 		self.original_id = original_id
 		self.contour_type = contour_type
 		self.contour_id = contour_id
-
-		self.directory = 'contourfiles/'
-		self.filename_prefix = 'IM-0001-'
-		self.filename_postfix = '-' + contour_type + 'contour-manual.txt'
 
 	def _construct_filename(self):
 		"""Construct i-contour filename.
@@ -132,12 +130,13 @@ class ContourParser(object):
 		contour_id_str = '0' * (4 - num_digits) + str(self.contour_id)
 
 		if self.contour_type == 'i':
-			folder = '/i-contours/'
+			contour_fn = (ContourParser.DIR + self.original_id + ContourParser.ICONTOUR_FOLDER +
+						  ContourParser.FN_PREFIX + contour_id_str +
+						  ContourParser.ICONTOUR_FN_POSTFIX)
 		elif self.contour_type == 'o':
-			folder = '/o-contours/'
-
-		contour_fn = (self.directory + self.original_id + folder + self.filename_prefix +
-					  contour_id_str + self.filename_postfix)
+			contour_fn = (ContourParser.DIR + self.original_id + ContourParser.OCONTOUR_FOLDER +
+						  ContourParser.FN_PREFIX + contour_id_str +
+						  ContourParser.OCONTOUR_FN_POSTFIX)
 
 		if os.path.isfile(contour_fn):
 			return contour_fn
@@ -169,24 +168,19 @@ class ContourParser(object):
 		return coords_lst
 
 
-class MaskParser(object):
+class MaskParser(Parser):
 	"""A pipeline for creating boolean mask from DICOM images and contour files."""
 
-	def __init__(self, patient_id, original_id, file_id, contour_type):
+	def __init__(self, dicom_image, contour_polygon):
 		"""A constructor for initializing a MaskParser instance.
 
 		Params:
-			patient_id: str - encoded patient ID for constructing DICOM image filename
-			original_id: str - encoded original ID for constructing i-contour filename
-			file_id: int - specify DICOM image file ID and contour file ID
-			contour_type: str - 'o' for `o-contours`, 'i' for `i-contours` 
+			dicom_image: ndarray - dicom image pixel data
+			contour_polygon: list of tuples - contour polygon coordinates
 		"""
 
-		dicom_parser = DicomParser(patient_id, file_id)
-		self.dicom_image = dicom_parser.parse()
-
-		contour_parser = ContourParser(original_id, contour_type, file_id)
-		self.contour_polygon = contour_parser.parse()
+		self.dicom_image = dicom_image
+		self.contour_polygon = contour_polygon
 
 	def _convert_polyon_to_mask(self, polygon, width, height):
 		"""Convert polygon to mask.
