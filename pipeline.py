@@ -2,7 +2,6 @@
 
 __author__ = 'zhongyu kuang'
 __email__ = 'zhongyu.kuang@gmail.com'
-
 """
 
 import os
@@ -177,11 +176,3 @@ class TrainingPipeline(object):
 
 		self._start = end
 		return batch_input, batch_target
-
-
-
-
-
-
-
-

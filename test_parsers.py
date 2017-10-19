@@ -133,5 +133,3 @@ if __name__ == '__main__':
 	print('testing MaskParser...')
 	test__process_dicom_image()
 	test_parse_boolean_mask()
-
-

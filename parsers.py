@@ -2,7 +2,6 @@
 
 __author__ = 'zhongyu kuang'
 __email__ = 'zhongyu.kuang@gmail.com'
-
 """
 
 import abc
