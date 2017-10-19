@@ -1,4 +1,4 @@
-## DICOM Image Parser and Training Pipeline
+## DICOM Image Parsing and Training Pipeline
 
 ### Programming Language
 - Python 2.7
@@ -18,4 +18,5 @@
 ### Training Pipeline (file: `pipeline.py`, testing file: `test_pipeline.py`)
 - TrainingPipeline: a class for pairing DICOM images and contour files, producing boolean masks, parsing all data, and batch serving `(input, target)` pairs
 
-### A demoing of the main APIs of `parsers.py` and `pipeline.py` is illustrated in the `demo.ipynb` notebook. In addition to the demonstration of the major APIs, a few discussions on how the pieces are developed, how the correctness of the program is verified, and how the `parser` and `pipeline` can be further improved in the future are also included.
+### Demo (file `demo.ipynb`)
+- A demoing of the main APIs of `parsers.py` and `pipeline.py` is illustrated in the `demo.ipynb` notebook. In addition to the demonstration of the major APIs, a few discussions on how the pieces are developed, how the correctness of the program is verified, and how the `parser` and `pipeline` can be further improved in the future are also included.
