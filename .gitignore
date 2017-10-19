@@ -2,3 +2,5 @@
 contourfiles/*
 dicoms/*
 *.csv
+*.pyc
+.ipynb_checkpoints/*
