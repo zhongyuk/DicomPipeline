@@ -202,10 +202,6 @@ class MaskParser(Parser):
     def parse(self, visualize=False):
         """Create boolean mask based on DICOM image and i-contour polygon.
 
-        Conventionally, dicom_id and icontour_id should be the same value.
-        If dicom_id != icontour_id, a warning is raised to warn user.
-        However, the program will continue execution.
-
         Params:
             visualize: boolean - if True, invoke visualization of DICOM image and mask
 

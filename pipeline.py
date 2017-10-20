@@ -66,7 +66,7 @@ class TrainingPipeline(object):
             end = contour_filename.index(parsers.ContourParser.ICONTOUR_FN_POSTFIX)
         else:
             end = contour_filename.index(parsers.ContourParser.OCONTOUR_FN_POSTFIX)
-        return int(contour_filename[start + 1 : end])
+        return int(contour_filename[start + 1: end])
 
     def _get_all_contour_ids(self, original_id):
         """Fetch all contour file ID in the directory.
