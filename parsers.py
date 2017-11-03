@@ -33,7 +33,8 @@ class DicomParser(Parser):
         """A constructor for initializing a DicomParser instance.
 
         Params:
-            patient_id: str - encoded patient ID for constructing DICOM image filename
+            patient_id: str - encoded patient ID for
+                        constructing DICOM image filename
             dicom_id: int - the specified IDCOM image ID
         """
         self.patient_id = patient_id
@@ -89,6 +90,23 @@ class DicomParser(Parser):
         except InvalidDicomError:
             return None
 
+    def _process_dicom_image(self, dicom_image):
+        """Process DICOM image into RGB format.
+
+        Return:
+            dicom_image_3D: ndarray - 3D numpy ndarray of DICOM in RGB format
+        """
+
+        dicom_image_normalized = 255. * dicom_image / dicom_image.max()
+        dicom_image_3D = np.repeat(dicom_image_normalized[:, :, None], 3, 2)
+        return dicom_image_3D.astype('uint8')
+
+    def visualize(self):
+        dcm_image = self.parse()
+        dcm_rgb = self._process_dicom_image(dcm_image)
+        plt.imshow(dcm_rgb)
+        plt.show()
+
 
 class ContourParser(Parser):
     """Contour File Parser."""
@@ -104,12 +122,15 @@ class ContourParser(Parser):
         """A constructor for initializing a ContourParser instance.
 
         Params:
-            original_id: str - encoded original ID for constructing i-contour filename
+            original_id: str - encoded original ID for constructing
+                         i-contour filename
             contour_type: str - 'o' for `o-contours`, 'i' for `i-contours`
             contour_id: int - specify contour file ID
         """
-        assert contour_type in ['o', 'i'], 'unknown contour type: %s' % (contour_type)
-        assert contour_id < 10 ** 5, 'contour ID is too large: %d' % (contour_id)
+        assert contour_type in ['o', 'i'], 'unknown contour type: %s'\
+            % (contour_type)
+        assert contour_id < 10 ** 5, 'contour ID is too large: %d'\
+            % (contour_id)
         self.original_id = original_id
         self.contour_type = contour_type
         self.contour_id = contour_id
@@ -128,11 +149,13 @@ class ContourParser(Parser):
         contour_id_str = '0' * (4 - num_digits) + str(self.contour_id)
 
         if self.contour_type == 'i':
-            contour_fn = (ContourParser.DIR + self.original_id + ContourParser.ICONTOUR_FOLDER +
+            contour_fn = (ContourParser.DIR + self.original_id +
+                          ContourParser.ICONTOUR_FOLDER +
                           ContourParser.FN_PREFIX + contour_id_str +
                           ContourParser.ICONTOUR_FN_POSTFIX)
         elif self.contour_type == 'o':
-            contour_fn = (ContourParser.DIR + self.original_id + ContourParser.OCONTOUR_FOLDER +
+            contour_fn = (ContourParser.DIR + self.original_id +
+                          ContourParser.OCONTOUR_FOLDER +
                           ContourParser.FN_PREFIX + contour_id_str +
                           ContourParser.OCONTOUR_FN_POSTFIX)
 
@@ -145,7 +168,7 @@ class ContourParser(Parser):
         """Parse the given contour filename.
 
         Return:
-            coords_lst: a list of tuples - holding x, y coordinates of the contour
+            coords_lst: a list of tuples - holding x, y coordinates of contour
         """
 
         try:
@@ -167,7 +190,7 @@ class ContourParser(Parser):
 
 
 class MaskParser(Parser):
-    """A pipeline for creating boolean mask from DICOM images and contour files."""
+    """A pipeline for creating boolean mask from DICOM and contour files."""
 
     def __init__(self, dicom_image, contour_polygon):
         """A constructor for initializing a MaskParser instance.
@@ -186,7 +209,8 @@ class MaskParser(Parser):
         http://stackoverflow.com/a/3732128/1410871
 
         Params:
-            polygon: list of tuples - x, y coords [(x1, y1), (x2, y2), ...] in units of pixels
+            polygon: list of tuples - x, y coords [(x1, y1), (x2, y2), ...]
+                     in units of pixels
             width: int - scalar image width
             height: int - scalar image height
 
@@ -203,7 +227,7 @@ class MaskParser(Parser):
         """Create boolean mask based on DICOM image and i-contour polygon.
 
         Params:
-            visualize: boolean - if True, invoke visualization of DICOM image and mask
+            visualize: boolean - if True, invoke visualizating DICOM and mask
 
         Return:
             boolean_mask: ndarray - the parsed boolean mask
@@ -213,11 +237,13 @@ class MaskParser(Parser):
             3) run into InvalidDicomError while parsing DICOM image.
         """
 
-        if self.dicom_image is None or self.contour_polygon is None: return None
+        if self.dicom_image is None or self.contour_polygon is None:
+            return None
 
         img_width, img_height = self.dicom_image.shape
 
-        boolean_mask = self._convert_polyon_to_mask(self.contour_polygon, img_width, img_height)
+        boolean_mask = self._convert_polyon_to_mask(self.contour_polygon,
+                                                    img_width, img_height)
 
         if visualize:
             self._visualize_dicom_with_mask(boolean_mask)
@@ -228,7 +254,8 @@ class MaskParser(Parser):
         """Display DICOM image and DICOM image with mask side by side."""
 
         dicom_image_rgb = self._process_dicom_image()
-        dicom_with_mask = self._combine_dicom_with_mask(dicom_image_rgb, boolean_mask)
+        dicom_with_mask = self._combine_dicom_with_mask(dicom_image_rgb,
+                                                        boolean_mask)
 
         plt.subplot(1, 2, 1)
         plt.imshow(dicom_image_rgb)
@@ -236,16 +263,17 @@ class MaskParser(Parser):
         plt.imshow(dicom_with_mask)
         plt.show()
 
-    def _combine_dicom_with_mask(self, dicom_image_rgb, boolean_mask, rgb=[147, 112, 219]):
+    def _combine_dicom_with_mask(self, dicom_image_rgb, boolean_mask,
+                                 rgb=[147, 112, 219]):
         """Combine DICOM image with boolean mask.
 
         Params:
-            dicom_image_rgb: ndarray - 3D numpy ndarray of DICOM image in RGB format
+            dicom_image_rgb: ndarray - 3D numpy ndarray of DICOM in RGB format
             boolean_mask: ndarray - 2D numpy ndarray of boolean
             rgb: list of int - color mask RGB value
 
         Return:
-            dicom_with_mask: ndarray - 3D numpy ndarray of DICOM image with boolean mask
+            dicom_with_mask: ndarray - 3D numpy ndarray of DICOM with bool mask
         """
 
         mask_3D = np.repeat(boolean_mask[:, :, None], 3, 2)
@@ -253,17 +281,19 @@ class MaskParser(Parser):
         g = rgb[1] * np.ones_like(boolean_mask)
         b = rgb[2] * np.ones_like(boolean_mask)
         color_mask = np.stack([r, g, b], axis=2).astype('uint8')
-        dicom_with_mask = dicom_image_rgb + (-1) * dicom_image_rgb * mask_3D + mask_3D * color_mask
+        dicom_with_mask = (dicom_image_rgb + (-1) * dicom_image_rgb *
+                           mask_3D + mask_3D * color_mask)
         return dicom_with_mask.astype('uint8')
 
     def _process_dicom_image(self):
         """Process DICOM image into RGB format.
 
         Return:
-            dicom_image_3D: ndarray - 3D numpy ndarray of DICOM image in RGB format
+            dicom_image_3D: ndarray - 3D numpy ndarray of DICOM in RGB format
         """
 
-        dicom_image_normalized = 255 * self.dicom_image / float(self.dicom_image.max())
+        dicom_image_normalized = (255. * self.dicom_image /
+                                  self.dicom_image.max())
         dicom_image_3D = np.repeat(dicom_image_normalized[:, :, None], 3, 2)
         return dicom_image_3D.astype('uint8')
 
@@ -286,3 +316,5 @@ class MaskParser(Parser):
             boolean_mask = self._convert_polyon_to_mask(self.contour_polygon,
                                                         img_width, img_height)
             self._visualize_dicom_with_mask(boolean_mask)
+        else:
+            self.parse(visualize=True)
