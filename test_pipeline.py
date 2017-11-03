@@ -1,30 +1,31 @@
 """Unit tests for pipeline."""
 
 import pipeline
+import parsers
+import pandas as pd
 
 
 def test__extract_contour_id():
     link_fn = 'link.csv'
-    contour_type = 'i'
     batch_size = 8
-    train_pipe = pipeline.TrainingPipeline(link_fn, contour_type, batch_size)
+    train_pipe = pipeline.TrainingPipeline(link_fn, batch_size)
 
-    contour_filename1 = 'IM-0001-0059-icontour-manual.txt'
-    fid1 = train_pipe._extract_contour_id(contour_filename1)
+    icontour_filename1 = 'IM-0001-0059-icontour-manual.txt'
+    icontour_type = 'i'
+    fid1 = train_pipe._extract_contour_id(icontour_filename1, icontour_type)
     assert fid1 == 59
 
-    contour_type = 'o'
-    train_pipe = pipeline.TrainingPipeline(link_fn, contour_type, batch_size)
-    contour_filename2 = 'IM-0001-0079-ocontour-manual.txt'
-    fid2 = train_pipe._extract_contour_id(contour_filename2)
+    train_pipe = pipeline.TrainingPipeline(link_fn, batch_size)
+    ocontour_filename2 = 'IM-0001-0079-ocontour-manual.txt'
+    ocontour_type = 'o'
+    fid2 = train_pipe._extract_contour_id(ocontour_filename2, ocontour_type)
     assert fid2 == 79
 
 
 def test_prepare_training_data():
     link_fn = 'link.csv'
-    contour_type = 'i'
     batch_size = 8
-    train_pipe = pipeline.TrainingPipeline(link_fn, contour_type, batch_size)
+    train_pipe = pipeline.TrainingPipeline(link_fn, batch_size)
     train_pipe.prepare_training_data()
 
     pid_oid_df = train_pipe._pair_dicom_and_contour()
@@ -34,13 +35,14 @@ def test_prepare_training_data():
 
     assert len(train_pipe._inputs) == cnt
     assert len(train_pipe._targets) == cnt
+    assert train_pipe._inputs.shape == (cnt, 256, 256, 3)
+    assert train_pipe._targets.shape == (cnt, 256, 256, 3, 2)
 
 
 def test_next_batch():
     link_fn = 'link.csv'
-    contour_type = 'i'
     batch_size = 8
-    train_pipe = pipeline.TrainingPipeline(link_fn, contour_type, batch_size)
+    train_pipe = pipeline.TrainingPipeline(link_fn, batch_size)
     train_pipe.prepare_training_data()
 
     expected_start = 0
@@ -52,8 +54,38 @@ def test_next_batch():
             expected_start %= len(train_pipe._inputs)
 
 
+def test__plot_input_output():
+    link_fn = 'link.csv'
+    link_df = pd.read_csv(link_fn)
+
+    pid = link_df['patient_id'][0]
+    oid = link_df['original_id'][0]
+    fid = 59
+
+    dicom_parser = parsers.DicomParser(pid, fid)
+    dicom_image = dicom_parser.parse()
+
+    icontour_type = 'i'
+    icontour_parser = parsers.ContourParser(oid, fid, icontour_type)
+    icontour_polygon = icontour_parser.parse()
+
+    imask_parser = parsers.MaskParser(dicom_image, icontour_polygon)
+    imask = imask_parser.parse()
+
+    ocontour_type = 'o'
+    ocontour_parser = parsers.ContourParser(oid, fid, ocontour_type)
+    ocontour_polygon = ocontour_parser.parse()
+
+    omask_parser = parsers.MaskParser(dicom_image, ocontour_polygon)
+    omask = omask_parser.parse()
+
+    train_pipe = pipeline.TrainingPipeline(link_fn, 8)
+    train_pipe._plot_input_output(dicom_image, imask, omask)
+
+
 if __name__ == '__main__':
     print('testing TrainingPipeline...')
     test__extract_contour_id()
     test_prepare_training_data()
     test_next_batch()
+    test__plot_input_output()
