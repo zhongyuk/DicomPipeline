@@ -5,6 +5,7 @@ __email__ = 'zhongyu.kuang@gmail.com'
 """
 
 import os
+import matplotlib.pyplot as plt
 import numpy as np
 import parsers
 import pandas as pd
@@ -19,7 +20,7 @@ class TrainingPipeline(object):
         - random reshuffle all training data per epoch
     """
 
-    def __init__(self, link_fn, contour_type, batch_size):
+    def __init__(self, link_fn, batch_size):
         """A constructor for initializing a TrainingPipeline instance.
 
         Params:
@@ -36,7 +37,7 @@ class TrainingPipeline(object):
         self.link_fn = link_fn
         self.batch_size = batch_size
 
-        self.contour_type = contour_type#['i', 'o']
+        self._contour_types = ['i', 'o']
         self._inputs = None
         self._targets = None
         self._start = 0
@@ -59,22 +60,23 @@ class TrainingPipeline(object):
             fn[: fn.index(parsers.DicomParser.FN_POSTFIX)]), dicom_fns)
         return dicom_ids
 
-    def _extract_contour_id(self, contour_filename):
+    def _extract_contour_id(self, contour_filename, contour_type):
         """Extract a single contour file ID from the contour filename.
 
         Params:
             contour_filename: str - the contour filename.
                               i.e. `IM-0001-0009-icontour-manual.txt`
+            contour_type: str - 'i' or 'o' indicating contour types
         Return:
             contour_file_id: int - contour file ID
         """
 
         start = contour_filename.index(parsers.ContourParser.FN_PREFIX)
         start += len(parsers.ContourParser.FN_PREFIX)
-        if self.contour_type == 'i':
+        if contour_type == 'i':
             end = contour_filename.index(
                 parsers.ContourParser.ICONTOUR_FN_POSTFIX)
-        else:
+        if contour_type == 'o':
             end = contour_filename.index(
                 parsers.ContourParser.OCONTOUR_FN_POSTFIX)
         return int(contour_filename[start + 1: end])
@@ -89,22 +91,26 @@ class TrainingPipeline(object):
             contour_ids: list of int - list of contour file ID
         """
 
-        if self.contour_type == 'i':
-            contour_path = (parsers.ContourParser.DIR + original_id +
-                            parsers.ContourParser.ICONTOUR_FOLDER)
-            contour_fns = [fn for fn in os.listdir(contour_path)
-                           if fn.endswith(
-                           parsers.ContourParser.ICONTOUR_FN_POSTFIX)]
+        for contour_type in self._contour_types:
+            if contour_type == 'i':
+                icontour_path = (parsers.ContourParser.DIR + original_id +
+                                 parsers.ContourParser.ICONTOUR_FOLDER)
+                icontour_fns = [fn for fn in os.listdir(icontour_path)
+                                if fn.endswith(
+                                parsers.ContourParser.ICONTOUR_FN_POSTFIX)]
+                icontour_ids = map(lambda fn: self._extract_contour_id(
+                                   fn, contour_type), icontour_fns)
 
-        else:
-            contour_path = (parsers.ContourParser.DIR + original_id +
-                            parsers.ContourParser.OCONTOUR_FOLDER)
-            contour_fns = [fn for fn in os.listdir(contour_path)
-                           if fn.endswith(
-                           parsers.ContourParser.OCONTOUR_FN_POSTFIX)]
+            if contour_type == 'o':
+                ocontour_path = (parsers.ContourParser.DIR + original_id +
+                                 parsers.ContourParser.OCONTOUR_FOLDER)
+                ocontour_fns = [fn for fn in os.listdir(ocontour_path)
+                                if fn.endswith(
+                               parsers.ContourParser.OCONTOUR_FN_POSTFIX)]
+                ocontour_ids = map(lambda fn: self._extract_contour_id(
+                                   fn, contour_type), ocontour_fns)
 
-        contour_ids = map(lambda fn: self._extract_contour_id(fn), contour_fns)
-        return contour_ids
+        return list(set(icontour_ids).intersection(set(ocontour_ids)))
 
     def _pair_dicom_and_contour(self):
         """Innersect/Inner-join (SQL-alike) available dicom IDs and contour IDs.
@@ -126,6 +132,7 @@ class TrainingPipeline(object):
         Params:
             pid_oid: DataFrame stores: `patient_id`, `original_id`,
                      list of `file_id`
+            visualize: boolean - if True, invoke data visualization
         """
 
         dicom_input = []
@@ -138,23 +145,49 @@ class TrainingPipeline(object):
 
             for fid in fids:
                 dicom = parsers.DicomParser(pid, fid).parse()
-                contour = parsers.ContourParser(
-                    oid, fid, self.contour_type).parse()
-                if dicom is not None and contour is not None:
-                    mask = parsers.MaskParser(dicom, contour).parse(visualize)
+                masks = []
 
+                for contour_type in self._contour_types:
+                    contour = parsers.ContourParser(
+                        oid, fid, contour_type).parse()
+                    if dicom is not None and contour is not None:
+                        mask = parsers.MaskParser(
+                            dicom, contour).parse()
+                        masks.append(mask)
+
+                if len(masks) == 2:
                     dicom_input.append(dicom)
-                    mask_output.append(mask)
+                    mask_output.append(np.stack(masks, -1))
+
+                if visualize and dicom is not None and len(masks) == 2:
+                    self._plot_input_output(dicom, masks[0], masks[1])
 
         self._inputs = np.stack(dicom_input, axis=0)
         self._targets = np.stack(mask_output, axis=0)
+
+    def _plot_input_output(self, dicom, imask, omask):
+        """Plot DICOM image, i-contour mask, o-contour mask side by side."""
+
+        dicom_imsk = parsers.combine_dicom_with_mask(dicom, imask)
+        dicom_omsk = parsers.combine_dicom_with_mask(dicom, omask)
+
+        plt.subplot(1, 3, 1)
+        plt.imshow(dicom)
+        plt.title('Raw IDCOM Image')
+        plt.subplot(1, 3, 2)
+        plt.imshow(dicom_imsk)
+        plt.title('I-Contour')
+        plt.subplot(1, 3, 3)
+        plt.imshow(dicom_omsk)
+        plt.title('O-Contour')
+        plt.show()
 
     def _random_shuffle(self):
         """Randomly shuffle `self._inputs` and `self._targets`."""
 
         assert self._inputs is not None, 'inputs have not been parsed yet!'
         assert self._targets is not None, 'targets have not been parsed yet!'
-        assert len(self._inputs) == len(self._targets),\
+        assert len(self._inputs) == len(self._targets), \
             'inputs size does not equal to targets size!'
 
         indices = np.arange(len(self._inputs))
@@ -164,7 +197,12 @@ class TrainingPipeline(object):
         self._targets = self._targets[indices]
 
     def prepare_training_data(self, visualize=False):
-        """Prepare trianing data by parsing inputs and preparing targets."""
+        """Prepare trianing data by parsing inputs and preparing targets.
+
+        Params:
+            visualize: boolean - if True, invoke data visualization
+                       while parsing data
+        """
 
         print('Preparing training data...')
         pid_oid = self._pair_dicom_and_contour()
