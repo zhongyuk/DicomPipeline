@@ -29,13 +29,13 @@ def combine_dicom_with_mask(dicom_image_rgb, mask_3D,
     """
 
     shape2D = mask_3D.shape[: -1]
-    r = rgb[0] * np.ones(shape2D)
-    g = rgb[1] * np.ones(shape2D)
-    b = rgb[2] * np.ones(shape2D)
-    color_mask = np.stack([r, g, b], axis=2).astype('uint8')
+    r = rgb[0] / 255. * np.ones(shape2D)
+    g = rgb[1] / 255. * np.ones(shape2D)
+    b = rgb[2] / 255. * np.ones(shape2D)
+    color_mask = np.stack([r, g, b], axis=2)
     dicom_with_mask = (dicom_image_rgb + (-1) * dicom_image_rgb *
                        mask_3D + mask_3D * color_mask)
-    return dicom_with_mask.astype('uint8')
+    return dicom_with_mask
 
 
 class Parser(object):
@@ -122,9 +122,9 @@ class DicomParser(Parser):
             dicom_image_3D: ndarray - 3D numpy ndarray of DICOM in RGB format
         """
 
-        dicom_image_normalized = 255. * dicom_image / dicom_image.max()
+        dicom_image_normalized = dicom_image / float(dicom_image.max())
         dicom_image_rgb = np.repeat(dicom_image_normalized[:, :, None], 3, 2)
-        return dicom_image_rgb.astype('uint8')
+        return dicom_image_rgb
 
     def visualize(self, dcm_rgb=None):
         """Visualize raw DICOM image.
